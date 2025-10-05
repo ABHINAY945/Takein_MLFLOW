@@ -49,7 +49,7 @@ Run with Custom Parameters (e.g., alpha=0.1, l1_ratio=0.8):
 Bash
 python app.py 0.1 0.8
 
-
+---
 📊 Results and Tracking
 All experiment runs (parameters, metrics, and models) are logged to the remote MLflow Tracking Server hosted on DAGsHub:
 
