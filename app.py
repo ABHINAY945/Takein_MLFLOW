@@ -32,6 +32,14 @@ def eval_metrics(actual, pred):
 if __name__ == "__main__":
     warnings.filterwarnings("ignore")
     np.random.seed(40)
+    
+    # --------------------------------------------------------------------------
+    # MODIFICATION 1: SET TRACKING URI BEFORE STARTING THE RUN
+    # This ensures all logging (params, metrics, model) go to the remote server.
+    # Note: Using your user's repository from the previous interaction.
+    remote_server_uri = "https://dagshub.com/ABHINAY945/Takein_MLFLOW.mlflow"
+    mlflow.set_tracking_uri(remote_server_uri)
+    # --------------------------------------------------------------------------
 
     # Read the wine-quality csv file from the URL
     csv_url = (
@@ -43,9 +51,11 @@ if __name__ == "__main__":
         logger.exception(
             "Unable to download training & test CSV, check your internet connection. Error: %s", e
         )
+        # Exit if data cannot be loaded
+        sys.exit(1) 
 
     # Split the data into training and test sets. (0.75, 0.25) split.
-    train, test = train_test_split(data)
+    train, test = train_test_split(data, random_state=42)
 
     # The predicted column is "quality" which is a scalar from [3, 9]
     train_x = train.drop(["quality"], axis=1)
@@ -56,7 +66,7 @@ if __name__ == "__main__":
     alpha = float(sys.argv[1]) if len(sys.argv) > 1 else 0.5
     l1_ratio = float(sys.argv[2]) if len(sys.argv) > 2 else 0.5
 
-    with mlflow.start_run():
+    with mlflow.start_run(run_name=f"Alpha_{alpha}_L1_{l1_ratio}"): # Optional: Add run_name
         lr = ElasticNet(alpha=alpha, l1_ratio=l1_ratio, random_state=42)
         lr.fit(train_x, train_y)
 
@@ -69,30 +79,27 @@ if __name__ == "__main__":
         print("  MAE: %s" % mae)
         print("  R2: %s" % r2)
 
+        # Log parameters and metrics 
         mlflow.log_param("alpha", alpha)
         mlflow.log_param("l1_ratio", l1_ratio)
         mlflow.log_metric("rmse", rmse)
         mlflow.log_metric("r2", r2)
         mlflow.log_metric("mae", mae)
 
-        #predictions = lr.predict(train_x)
-        #signature = infer_signature(train_x, predictions)
-
-        ## For Remote server only(DAGShub)
-
-        remote_server_uri="https://dagshub.com/krishnaik06/mlflowexperiments.mlflow"
-        mlflow.set_tracking_uri(remote_server_uri)
-
+        # --------------------------------------------------------------------------
+        # Check if the tracking URI is a remote server (i.e., not local 'file')
         tracking_url_type_store = urlparse(mlflow.get_tracking_uri()).scheme
 
-        # Model registry does not work with file store
         if tracking_url_type_store != "file":
-            # Register the model
-            # There are other ways to use the Model Registry, which depends on the use case,
-            # please refer to the doc for more information:
-            # https://mlflow.org/docs/latest/model-registry.html#api-workflow
+            # Log and Register the model on the remote server
             mlflow.sklearn.log_model(
-                lr, "model", registered_model_name="ElasticnetWineModel"
+                lr, 
+                "model", 
+                registered_model_name="ElasticnetWineModel"
             )
         else:
+            # Log model only (no registration with local file store)
             mlflow.sklearn.log_model(lr, "model")
+        # --------------------------------------------------------------------------
+
+    # The run ends automatically here, committing all logs to the remote URI.
